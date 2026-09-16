@@ -1,0 +1,133 @@
+diff --git i/src/Hy3Layout.cpp w/src/Hy3Layout.cpp
+index 7f91608..bc19c19 100644
+--- i/src/Hy3Layout.cpp
++++ w/src/Hy3Layout.cpp
+@@ -1474,6 +1474,83 @@ bool shiftMatchesLayout(Hy3GroupLayout layout, ShiftDirection direction) {
+ 	    || (layout != Hy3GroupLayout::SplitV && !shiftIsVertical(direction));
+ }
+ 
++// Move through one tiling-tree relationship per keypress. This intentionally
++// leaves upstream move_window and focus behavior untouched.
++void Hy3Layout::moveCosmic(const CWorkspace* workspace, ShiftDirection direction) {
++ auto* focused = getWorkspaceFocusedNode(workspace);
++ if (!focused) return;
++ auto* node = &focused->getExpandActor().getPlacementActor();
++ auto* original = node->parent.get();
++ if (!original || original->is_root()) return;
++ auto* child = node;
++ auto* parent = original;
++ const bool forward = shiftIsForward(direction);
++ const auto axis = shiftIsVertical(direction) ? Hy3GroupLayout::SplitV : Hy3GroupLayout::SplitH;
++ Hy3Node* destination = nullptr;
++ std::list<UP<Hy3Node>>::iterator insertion;
++ while (parent && !parent->is_root()) {
++  auto& group = parent->as_group();
++  // Tabs and locked/expanded groups keep upstream behavior.
++  if (!group.isSplit() || group.locked) {
++   shiftOrGetFocus(*focused, direction, true, true, false);
++   return;
++  }
++  auto current = group.findChild(*child);
++  if (!shiftMatchesLayout(group.layout, direction)) {
++   if (group.children.size() == 1 && child == node && parent->is_root_group()) return;
++   parent->wrap(axis, GroupEphemeralityOption::Standard);
++   destination = parent->parent.get();
++   insertion = forward ? destination->as_group().children.end() : destination->as_group().children.begin();
++   break;
++  }
++  if (child != node) {
++   destination = parent;
++   insertion = forward ? std::next(current) : current;
++   break;
++  }
++  const bool boundary = forward ? std::next(current) == group.children.end() : current == group.children.begin();
++  if (boundary) { child = parent; parent = parent->parent.get(); continue; }
++  auto next = forward ? std::next(current) : std::prev(current);
++  auto* neighbor = next->get();
++  if (group.children.size() > 2) {
++   neighbor->wrap(axis, GroupEphemeralityOption::Standard);
++   destination = neighbor->parent.get();
++   insertion = forward ? destination->as_group().children.begin() : destination->as_group().children.end();
++  } else if (neighbor->is_group() && neighbor->as_group().isSplit() && !neighbor->as_group().locked) {
++   destination = neighbor;
++   auto& into = neighbor->as_group();
++   if (shiftMatchesLayout(into.layout, direction)) {
++    insertion = forward ? into.children.begin() : into.children.end();
++   } else {
++    auto middle = std::next(into.children.begin(), into.children.size() / 2);
++    if (into.children.size() % 2 == 0) insertion = middle;
++    else {
++     auto* center = middle->get();
++     center->wrap(axis, GroupEphemeralityOption::Standard);
++     destination = center->parent.get();
++     insertion = forward ? destination->as_group().children.begin() : destination->as_group().children.end();
++    }
++   }
++  } else {
++   destination = parent;
++   insertion = forward ? std::next(next) : next;
++  }
++  break;
++ }
++ if (!destination) return; // Reaching the workspace edge is a no-op.
++ if (destination == original) {
++  auto& children = original->as_group().children;
++  children.splice(insertion, children, original->as_group().findChild(*node));
++ } else {
++  auto moving = original->as_group().extractChild(*node);
++  destination->as_group().insertChild(insertion, std::move(moving));
++  original->collapseParents(CollapsePolicy::SingleNodeGroups);
++ }
++ node->updateTabBarRecursive();
++ node->focus(false, Desktop::FOCUS_REASON_KEYBIND);
++ recalcGeometry();
++}
++
+ Hy3Node* Hy3Layout::shiftOrGetFocus(
+     Hy3Node& node,
+     ShiftDirection direction,
+diff --git i/src/Hy3Layout.hpp w/src/Hy3Layout.hpp
+index ae7fa99..9f68090 100644
+--- i/src/Hy3Layout.hpp
++++ w/src/Hy3Layout.hpp
+@@ -142,6 +142,7 @@ public:
+ 	void changeGroupEphemeralityOn(Hy3Node&, bool ephemeral);
+ 	void shiftNode(Hy3Node&, ShiftDirection, bool once, bool visible);
+ 	void shiftWindow(const CWorkspace* workspace, ShiftDirection, bool once, bool visible);
++	void moveCosmic(const CWorkspace* workspace, ShiftDirection direction);
+ 	void shiftFocus(const CWorkspace* workspace, ShiftDirection, bool visible, bool warp);
+ 	void toggleFocusLayer(const CWorkspace* workspace, bool warp);
+ 	bool shiftMonitor(Hy3Node&, ShiftDirection, bool follow);
+diff --git i/src/dispatchers.cpp w/src/dispatchers.cpp
+index 74e9a95..99ec025 100644
+--- i/src/dispatchers.cpp
++++ w/src/dispatchers.cpp
+@@ -441,6 +441,20 @@ static SDispatchResult moveWindow(ShiftDirection shift, bool once, bool visible)
+ 	return SDispatchResult {};
+ }
+ 
++// Directional tree movement, separate from the upstream hy3 dispatcher.
++static int luaMoveCosmic(lua_State* L) {
++ luaCheckArgCount(L, "hl.plugin.hy3.move_cosmic", 1, 1);
++ auto direction = luaShiftArg(L, 1, "hl.plugin.hy3.move_cosmic");
++ lua_pushinteger(L, static_cast<lua_Integer>(direction));
++ lua_pushcclosure(L, [](lua_State* L) -> int {
++  auto* layout = hy3InstanceForAction();
++  if (layout) layout->moveCosmic(layout->workspace().get(),
++      static_cast<ShiftDirection>(lua_tointeger(L, lua_upvalueindex(1))));
++  return 0;
++ }, 1);
++ return 1;
++}
++
+ static int luaMoveWindow(lua_State* L) {
+ 	static constexpr const char* FN = "hl.plugin.hy3.move_window";
+ 	luaCheckArgCount(L, FN, 1, 2);
+@@ -957,6 +971,7 @@ static void registerLuaDispatchers() {
+ 	HyprlandAPI::addLuaFunction(PHANDLE, "hy3", "toggle_focus_layer", luaToggleFocusLayer);
+ 	HyprlandAPI::addLuaFunction(PHANDLE, "hy3", "warp_cursor", luaWarpCursor);
+ 	HyprlandAPI::addLuaFunction(PHANDLE, "hy3", "move_window", luaMoveWindow);
++	HyprlandAPI::addLuaFunction(PHANDLE, "hy3", "move_cosmic", luaMoveCosmic);
+ 	HyprlandAPI::addLuaFunction(PHANDLE, "hy3", "move_to_workspace", luaMoveToWorkspace);
+ 	HyprlandAPI::addLuaFunction(PHANDLE, "hy3", "change_focus", luaChangeFocus);
+ 	HyprlandAPI::addLuaFunction(PHANDLE, "hy3", "focus_tab", luaFocusTab);

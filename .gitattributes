@@ -1,0 +1,2 @@
+# Preserve upstream whitespace in patch context lines.
+*.patch -whitespace
