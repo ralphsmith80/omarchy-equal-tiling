@@ -7,4 +7,6 @@
 - Add directional group movement, automatic equal sizing, and scrolling toggle.
 - Build pinned hy3 source with a verified checksum.
 - Preview installation, back up changed files, and support rollback.
+- Preserve configuration edits made while installation is being prepared.
+- Balance tiles after floating and restore layouts from custom state directories.
 - Test installation in temporary homes and movement in a nested compositor.

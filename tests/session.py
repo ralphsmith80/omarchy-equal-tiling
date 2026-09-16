@@ -17,6 +17,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix='eq-', dir='/tmp') as temporary:
         root = Path(temporary)
         home, runtime = root / 'home', root / 'rt'
+        state_home = root / 'custom-state'
         config = home / '.config/hypr/hyprland.lua'
         config.parent.mkdir(parents=True)
         runtime.mkdir(mode=0o700)
@@ -28,7 +29,7 @@ o = {bind = function(key, description, action, opts) test_bindings[key] = action
 '''
         config.write_text(original)
         env = dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(home / '.config'),
-                   XDG_STATE_HOME=str(home / '.local/state'), XDG_CACHE_HOME=str(home / '.cache'),
+                   XDG_STATE_HOME=str(state_home), XDG_CACHE_HOME=str(home / '.cache'),
                    XDG_RUNTIME_DIR=str(runtime), WAYLAND_DISPLAY=str(parent_display),
                    AQ_DRM_DEVICES='/dev/null')
         env.pop('HYPRLAND_INSTANCE_SIGNATURE', None)
@@ -56,7 +57,9 @@ o = {bind = function(key, description, action, opts) test_bindings[key] = action
                 else:
                     raise TimeoutError('Nested compositor did not start')
                 def ctl(*args):
-                    return subprocess.check_output(['hyprctl', *args], env=env, text=True).strip()
+                    result = subprocess.run(['hyprctl', *args], env=env, text=True, capture_output=True)
+                    assert result.returncode == 0, (args, result.stdout, result.stderr)
+                    return result.stdout.strip()
                 def ev(code):
                     result = ctl('eval', code)
                     assert result == 'ok', result
@@ -118,9 +121,30 @@ o = {bind = function(key, description, action, opts) test_bindings[key] = action
                 assert json.loads(ctl('activewindow', '-j'))['floating']
                 ev('test_bindings["SUPER + T"]()')
                 assert not json.loads(ctl('activewindow', '-j'))['floating']
+                ev('hl.dispatch(hl.dsp.focus({workspace="2"}))')
+                for label in 'EFG':
+                    open_window(label)
+                ev('hl.dispatch(hl.plugin.hy3.change_group("h"))')
+                focus('E')
+                ev('hl.dispatch(hl.dsp.window.resize({x=150, y=0, relative=true}))')
+                assert abs(windows()['E']['size'][0] - windows()['F']['size'][0]) > 20
+                focus('G')
+                ev('test_bindings["SUPER + T"]()')
+                assert windows()['G']['floating']
+                assert abs(windows()['E']['size'][0] - windows()['F']['size'][0]) <= 2
+                print('PASS: floating a resized sibling equalizes the remaining tiles', flush=True)
                 ev('test_bindings["SUPER + L"]()')
+                legacy = home / '.local/state/omarchy/workspace-layouts/2.lua'
+                legacy.parent.mkdir(parents=True)
+                legacy.write_text('hl.workspace_rule({workspace="2", layout="dwindle"})\n')
+                for _ in range(2):
+                    assert ctl('reload') == 'ok'
+                    time.sleep(.5)
+                    ev('require("default.hypr.workspace-layouts")')
+                    ev('assert(hl.get_active_workspace().tiled_layout == "scrolling")')
+                print('PASS: custom state directory wins over stale defaults across reloads', flush=True)
                 ev('test_bindings["SUPER + L"]()')
-                saved = list((home / '.local/state/omarchy/workspace-layouts').glob('*.lua'))
+                saved = list((state_home / 'omarchy/workspace-layouts').glob('*.lua'))
                 assert len(saved) == 1 and 'hl.plugin.hy3' in saved[0].read_text()
                 assert ctl('reload') == 'ok'
                 time.sleep(.5)
@@ -134,6 +158,9 @@ o = {bind = function(key, description, action, opts) test_bindings[key] = action
                 time.sleep(.5)
                 assert not ctl('configerrors'), ctl('configerrors')
                 assert 'hy3' not in ctl('plugin', 'list')
+                ev('require("default.hypr.workspace-layouts")')
+                ev('hl.dispatch(hl.dsp.focus({workspace="2"}))')
+                ev('assert(hl.get_active_workspace().tiled_layout == "dwindle")')
                 stamp.write_text(commit)
                 assert ctl('reload') == 'ok'
                 time.sleep(.5)

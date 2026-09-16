@@ -138,7 +138,9 @@ def collect_files(args):
     # Keep the machine's main configuration; load our overrides before saved layouts.
     target = ".config/hypr/hyprland.lua"
     main = safe_path(args.home, target)
-    text = main.read_text()
+    original = main.read_bytes()
+    mode = stat.S_IMODE(main.stat().st_mode)
+    text = original.decode()
     if find_loader(text, "hypr.dotfiles"):
         raise ValueError("hypr.dotfiles already provides this layout. Remove its tiling section and loader dependency before installing this standalone package.")
     loader = 'require("hypr.equal-tiling")'
@@ -148,8 +150,8 @@ def collect_files(args):
             text = text[:toggles.start()] + loader + "\n" + text[toggles.start():]
         else:
             text = text.rstrip() + "\n" + loader + "\n"
-    files[target] = (text.encode(), stat.S_IMODE(main.stat().st_mode))
-    return files
+    files[target] = (text.encode(), mode)
+    return files, {target: fingerprint(original, mode)}
 
 
 @contextmanager
@@ -224,13 +226,16 @@ def save_managed(home, managed):
     atomic_write(safe_path(home, ".local/state/omarchy-equal-tiling/managed.json"), json.dumps(managed, sort_keys=True).encode(), 0o600)
 
 
-def restore_files(args, files):
+def restore_files(args, files, expected=None):
     managed = read_managed(args.home)
     updated_managed = dict(managed)
     changes = []
     for relative, (data, mode) in files.items():
         target = safe_path(args.home, relative)
         before, after = state(target), fingerprint(data, mode)
+        # Transformed files must still match the bytes read during collection.
+        if expected and relative in expected and before != expected[relative]:
+            raise ValueError(f"File changed during collection: {target}. Preview again.")
         if before != after:
             if relative in managed and before != managed[relative] and not args.overwrite_local:
                 raise ValueError(f"Edited since last apply: {target}. Save the edit to the repository or use --overwrite-local to back up and replace it.")
@@ -306,10 +311,10 @@ def main():
                 raise ValueError("These overrides require Omarchy's standard ~/.config location.")
             if args.apply and BUILD.is_dir():
                 with write_lock(BUILD):
-                    files = collect_files(args)
+                    files, expected = collect_files(args)
             else:
-                files = collect_files(args)
-            restore_files(args, files)
+                files, expected = collect_files(args)
+            restore_files(args, files, expected)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1

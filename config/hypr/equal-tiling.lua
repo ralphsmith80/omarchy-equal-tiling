@@ -1,4 +1,14 @@
 -- Equal sibling sizes with hy3. Source is pinned and built against this Hyprland.
+local state_home = require("default.hypr.paths").state_home
+-- Omarchy's bootstrap may still put the default state directory first.
+-- Its saved-layout reader must resolve modules from the selected state home.
+local state_template = state_home .. "/?.lua"
+local search_paths = { state_template }
+for template in package.path:gmatch("[^;]+") do
+  if template ~= state_template then table.insert(search_paths, template) end
+end
+package.path = table.concat(search_paths, ";")
+
 local plugin_path = os.getenv("HOME") .. "/.local/lib/omarchy-equal-tiling/libhy3-cosmic.so"
 local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE") or ""
 local stamp = io.open(os.getenv("HOME") .. "/.local/lib/omarchy-equal-tiling/hyprland-commit", "r")
@@ -18,7 +28,10 @@ local function active_hy3()
     and window.workspace.tiled_layout == "hy3"
 end
 local function balance()
-  if active_hy3() then hl.dispatch(hy3.equalize({scope = "workspace"})) end
+  local workspace = hl.get_active_workspace()
+  if workspace and workspace.tiled_layout == "hy3" then
+    hl.dispatch(hy3.equalize({scope = "workspace"}))
+  end
 end
 local pending = false
 local function balance_later()
@@ -68,7 +81,7 @@ o.bind("SUPER + L", "Toggle equal tiling / scrolling", function()
   local workspace = hl.get_active_workspace()
   if not workspace then return end
   local layout = workspace.tiled_layout == "hy3" and "scrolling" or "hy3"
-  local directory = os.getenv("HOME") .. "/.local/state/omarchy/workspace-layouts"
+  local directory = state_home .. "/omarchy/workspace-layouts"
   -- A fresh home has no saved layouts yet. Quote the directory for the shell.
   os.execute("mkdir -p -- '" .. directory:gsub("'", "'\\''") .. "'")
   local path = directory .. "/" .. workspace.id .. ".lua"

@@ -152,12 +152,12 @@ class RestoreTest(unittest.TestCase):
         original = 'require("default.hypr.omarchy")\n-- personal settings\nrequire("default.hypr.toggles")\n'
         main.write_text(original)
         with patch.object(omarchy, "BUILD", self.home / "no-build"):
-            files = omarchy.collect_files(self.args)
+            files, expected = omarchy.collect_files(self.args)
             self.assertEqual(set(files), {".config/hypr/equal-tiling.lua", ".config/hypr/hyprland.lua"})
             edited = files[".config/hypr/hyprland.lua"][0].decode()
             self.assertIn('-- personal settings\nrequire("hypr.equal-tiling")\nrequire("default.hypr.toggles")', edited)
             main.write_text(edited)
-            self.assertEqual(omarchy.collect_files(self.args)[".config/hypr/hyprland.lua"][0], edited.encode())
+            self.assertEqual(omarchy.collect_files(self.args)[0][".config/hypr/hyprland.lua"][0], edited.encode())
             self.args.apply = True
             with self.assertRaisesRegex(ValueError, "Build custom tiling first"):
                 omarchy.collect_files(self.args)
@@ -177,6 +177,21 @@ class RestoreTest(unittest.TestCase):
             (build / "libhy3-cosmic.so").write_bytes(b"corrupt")
             self.assertFalse(omarchy.build_current(signature))
 
+    def test_edit_after_collection_is_rejected_before_any_write(self):
+        main = self.home / ".config/hypr/hyprland.lua"
+        main.parent.mkdir(parents=True)
+        main.write_text('require("default.hypr.toggles")\n')
+        with patch.object(omarchy, "BUILD", self.home / "no-build"):
+            files, expected = omarchy.collect_files(self.args)
+        edited = main.read_text() + '-- saved by editor while apply was starting\n'
+        main.write_text(edited)
+        self.args.apply = True
+        with self.assertRaisesRegex(ValueError, "File changed during collection"):
+            omarchy.restore_files(self.args, files, expected)
+        self.assertEqual(main.read_text(), edited)
+        self.assertFalse((main.parent / "equal-tiling.lua").exists())
+        self.assertEqual(self.backups(), set())
+
     def test_commented_loaders_are_ignored_and_single_quotes_are_supported(self):
         main = self.home / ".config/hypr/hyprland.lua"
         main.parent.mkdir(parents=True)
@@ -184,7 +199,7 @@ class RestoreTest(unittest.TestCase):
         original = comments + "require('default.hypr.toggles') -- saved layouts\n"
         main.write_text(original)
         with patch.object(omarchy, "BUILD", self.home / "no-build"):
-            edited = omarchy.collect_files(self.args)[".config/hypr/hyprland.lua"][0].decode()
+            edited = omarchy.collect_files(self.args)[0][".config/hypr/hyprland.lua"][0].decode()
         self.assertIn(comments, edited)
         loader = omarchy.find_loader(edited, "hypr.equal-tiling")
         self.assertIsNotNone(loader)
