@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0
+
+- Add an Omarchy service manifest and QML entry point for `omarchy plugin add`.
+- Build and load hy3 while enabled without editing Hyprland configuration files.
+- Restore saved configuration on disable and removal.
+- Handle compositor reload, shell restart, plugin update, and interrupted builds.
+- Reject an existing hy3 setup without unloading it.
+- Test the actual Omarchy plugin commands in an isolated shell and compositor.
+
 ## 0.1.0
 
 - Document the goal of replicating Pop!_OS COSMIC's tiling and window movement.

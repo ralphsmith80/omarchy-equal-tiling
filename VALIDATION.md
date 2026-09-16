@@ -5,7 +5,7 @@ Validated on 2026-09-16 with Hyprland 0.56.2, commit
 
 - Downloaded the pinned hy3 archive, verified its SHA-256, applied the patch,
   and compiled the shared library against the installed headers.
-- All 14 installer tests passed. These cover backups, byte and permission
+- All 16 unit tests passed. The 14 installer tests cover backups, byte and permission
   preservation, local edits, write failures, concurrent edits, symlink conflicts,
   loader insertion, build-cache integrity, conflicting dotfiles setup, and an
   editor save between configuration collection and apply.
@@ -30,11 +30,30 @@ The nested test uses Omarchy's module bootstrap and a minimal configuration.
 Other Hyprland releases, multiple monitors, and full desktop startup on another
 machine have not been tested. Reproduce with the commands in README.md.
 
+## Omarchy plugin lifecycle in 0.2.0
+
+- Validated `manifest.json` with `omarchy plugin validate` and checked `Service.qml`
+  with Qt's QML linter.
+- Started the real Omarchy shell on a private D-Bus session with a temporary home
+  and a separate nested compositor.
+- Ran actual `omarchy plugin add --enable`, disable, enable, update, and remove.
+  Verified that add loads hy3, reload restores movement bindings, update runs the
+  new Lua module, and disable/removal unload hy3 without editing Hyprland files.
+- Restarted the isolated shell while enabled and then removed the plugin.
+- Loaded a separate hy3 instance, enabled the service, and confirmed it reported
+  the conflict without unloading or replacing that instance.
+- Ran three rapid disable/enable cycles and verified that tiling stayed active.
+- Cancelled an uncached native build, then enabled again. The retry downloaded,
+  compiled, and activated the plugin successfully.
+- Added deterministic tests for re-enable during cleanup and kernel build-lock
+  release after SIGTERM. These reproduce both service review findings.
+
 ## Publication review
 
-Quality score: 100/100 under the QA code-review checklist. Two independent,
-read-only scenario reviews covered the installer and layout code. No findings
-remain open after fixes and runtime verification.
+Independent scenario reviews covered the installer, layout, and Omarchy service
+lifecycle. The service review found two disable/re-enable bugs. Both were fixed
+and have regression tests. No concrete high- or medium-severity findings remain
+open after review and runtime verification.
 
 - Fixed a first-install race that could replace an editor save made after the
   installer read the main configuration. Apply now checks the original input

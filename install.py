@@ -4,6 +4,7 @@
 import argparse
 from contextlib import contextmanager
 import hashlib
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -82,10 +83,23 @@ def build_current(signature):
         and state(safe_path(BUILD, name)) == saved["outputs"][name] for name in OUTPUTS)
 
 
+@contextmanager
+def build_lock():
+    """The kernel releases this lock even when a build is interrupted."""
+    BUILD.mkdir(parents=True, exist_ok=True)
+    marker = safe_path(BUILD, ".build.lock")
+    with marker.open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError("Another native build is running. Retry when it finishes.") from None
+        yield
+
+
 def build_hy3():
     signature = build_signature()
     BUILD.mkdir(parents=True, exist_ok=True)
-    with write_lock(BUILD):
+    with build_lock():
         if build_current(signature):
             print("hy3 build is unchanged; skipping download and compile.")
             return
@@ -310,7 +324,7 @@ def main():
             if os.environ.get("XDG_CONFIG_HOME") and Path(os.environ["XDG_CONFIG_HOME"]).resolve() != args.home / ".config":
                 raise ValueError("These overrides require Omarchy's standard ~/.config location.")
             if args.apply and BUILD.is_dir():
-                with write_lock(BUILD):
+                with build_lock():
                     files, expected = collect_files(args)
             else:
                 files, expected = collect_files(args)

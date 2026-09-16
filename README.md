@@ -1,13 +1,12 @@
-# Equal tiling for Omarchy
+# COSMIC-style equal tiling for Omarchy
 
-Equal-sized window groups and directional movement for Omarchy's Lua-based
-Hyprland setup. This package builds a patched [hy3](https://github.com/outfoxxed/hy3)
-and installs the Lua configuration that controls it.
+An Omarchy service plugin that aims to replicate the equal tiling and directional
+window movement of the [COSMIC desktop from Pop!_OS](https://system76.com/cosmic).
+It builds a patched [hy3](https://github.com/outfoxxed/hy3) and applies the layout
+while the plugin is enabled. It does not edit your Hyprland configuration files.
 
-The goal is to replicate the equal tiling and directional window movement of
-the [COSMIC desktop from Pop!_OS](https://system76.com/cosmic) in Omarchy.
-This is an independent implementation using hy3. It is not affiliated with or
-endorsed by System76, and it does not reproduce every COSMIC desktop feature.
+This is an independent implementation. It is not affiliated with or endorsed by
+System76, and it does not reproduce every COSMIC desktop feature.
 
 Press Super+Shift+an arrow to move the focused window through the layout tree.
 Moving across a split creates a group, enters a neighboring group, or steps out
@@ -19,55 +18,43 @@ For example, with `A | D | (B / C)`, focus D and press Right twice. The result i
 
 ## Requirements
 
-Tested with Hyprland **0.56.2** and Omarchy's Lua configuration. Older `.conf`
-setups are unsupported. Other Hyprland releases need a compatible hy3 revision
-and a fresh build. Keep the default `~/.config` location.
+Tested with Hyprland **0.56.2** and Omarchy's Lua configuration and Quickshell
+plugin system. Older `.conf` setups are unsupported. Other Hyprland releases
+need a compatible hy3 revision and a fresh build. Keep Omarchy's standard
+`~/.config` location.
 
 The build needs Python 3.9+, curl, tar, patch, CMake, Ninja, pkg-config, a C++23
 compiler, and development files for Hyprland, pixman, libdrm, Pango, libinput,
-Wayland, and xkbcommon. The installer does not install system packages.
+Wayland, and xkbcommon. The plugin does not install system packages or use sudo.
+The first build requires internet access to download pinned hy3 source.
 
-This is a Hyprland plugin with an Omarchy configuration module. Use the installer
-below. Omarchy's `omarchy plugin` command manages shell widgets and does not
-install this layout. Do not load a second copy of hy3 alongside this package.
+Do not load another copy of hy3 alongside this plugin. If you installed version
+0.1.0 with `install.py`, use its printed rollback command first. A custom
+`hypr.dotfiles` loader that supplies equal tiling must also stop loading hy3
+before this plugin can take over. The service reports a conflict and leaves an
+existing hy3 instance alone.
 
 ## Install
 
-Download or clone this repository, open its directory, and run:
-
 ```bash
-git clone https://github.com/ralphsmith80/omarchy-equal-tiling.git
-cd omarchy-equal-tiling
-python3 install.py --build
-python3 install.py          # Preview the files that will change
-python3 install.py --apply  # Back up and install
+omarchy plugin add https://github.com/ralphsmith80/omarchy-equal-tiling --enable --yes
 ```
 
-The build verifies a pinned source archive, applies `hy3.patch`, and compiles
-against the installed Hyprland headers. It writes only to `.build/`. The first
-build requires internet access. Unchanged builds skip the download and compile.
-
-Apply installs these files and adds `require("hypr.equal-tiling")` to your main
-Hyprland Lua configuration before Omarchy restores saved workspace layouts:
-
-- `~/.config/hypr/equal-tiling.lua`
-- `~/.local/lib/omarchy-equal-tiling/libhy3-cosmic.so`
-- `~/.local/lib/omarchy-equal-tiling/hyprland-commit`
-
-The package contains only the tiling configuration. Your monitor settings,
-application shortcuts, themes, dictation, and workspace number bindings stay in
-your own configuration.
-
-Hyprland may reload when the files change. Then check:
+The first enable builds hy3 in the background. Once ready, the service loads it
+and applies the shortcuts below. Allow a few minutes for compilation. Check:
 
 ```bash
-hyprctl reload
-hyprctl configerrors
 hyprctl plugin list
+hyprctl configerrors
 ```
 
-There should be no configuration errors, and the plugin list should show `hy3`.
-The underlying layout and Lua namespace retain the upstream name.
+The plugin list should show `hy3`, with no configuration errors. The underlying
+layout and Lua namespace retain the upstream name.
+
+Build and service messages go to
+`${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-equal-tiling/service.log`.
+If the build fails, resolve the reported dependency or version problem, then
+disable and enable the plugin to retry.
 
 ## Shortcuts
 
@@ -79,55 +66,95 @@ The underlying layout and Lua namespace retain the upstream name.
 | Super+L | Switch the workspace between equal tiling and scrolling |
 
 These replace Omarchy's directional focus, directional swap, floating, and
-workspace layout shortcuts. Super+J, Omarchy's split toggle, is disabled because
-Super+Shift+arrows controls the arrangement. Other shortcuts remain available.
-Movement does not move windows across monitors. This package does not reproduce
-the whole COSMIC desktop or its tab behavior.
+workspace layout shortcuts while enabled. Super+J, Omarchy's split toggle, is
+disabled because Super+Shift+arrows controls the arrangement. Other shortcuts
+remain available. Movement does not move windows across monitors. This plugin
+does not reproduce COSMIC's tab behavior.
+
+Super+L saves the workspace's layout choice in Omarchy's workspace state. Saved
+hy3 choices fall back to dwindle while hy3 is unavailable.
 
 ## Updates and removal
 
-After updating Hyprland, log in again and rerun the build, preview, and apply
-commands. The configuration skips the plugin when its build commit differs from
-the running compositor. Saved layouts created by Super+L fall back to dwindle
-when hy3 is unavailable. Replacing a loaded library can require a new session.
+```bash
+omarchy plugin update ralphsmith80.equal-tiling --yes
+omarchy plugin disable ralphsmith80.equal-tiling
+omarchy plugin enable ralphsmith80.equal-tiling
+omarchy plugin remove ralphsmith80.equal-tiling --yes
+```
 
-Changed files are backed up under `~/.local/state/omarchy-equal-tiling/restore-*`.
-Each apply prints its exact rollback command. Run that command to undo the apply.
-For several updates, undo backups in reverse order to remove the full install.
-Rollback preserves files that you changed after the install and reports the
-conflict instead of overwriting them. It restores the main configuration's exact
-prior contents, so reconcile later main-config edits before rolling back.
+Update applies the new service code. Disable and removal unload the native
+plugin and reload your saved Hyprland configuration. Cleanup can take a few
+seconds. They also stop an unfinished build. Restarting the Omarchy shell keeps
+the service active; ending the Hyprland session stops it.
 
-Apply also detects edits to files it installed. Use `--overwrite-local --apply`
-only when you intend to back up and replace those edits. Symlink and directory
-conflicts stop the operation before configuration writes. An installation that
-already uses the dotfiles `hypr.dotfiles` tiling module must remove that module's
-tiling setup before installing this package.
+After updating Hyprland, log out and back in. The service rebuilds against the
+installed headers when needed. It refuses to load a build that does not match
+the running compositor.
+
+Builds remain under `${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-equal-tiling` for reuse.
+Removal keeps that cache, the service log, and your saved workspace choices. You
+can delete the cache and log directory after removing the plugin.
+
+## What runs on your computer
+
+Omarchy loads `Service.qml`, which starts a Python worker. The worker uses
+Hyprland IPC to load the native library, apply Lua bindings, and restore the
+saved configuration on disable. It follows Omarchy's enabled service state and
+allows one worker per Hyprland session.
+
+The builder verifies the pinned source archive's SHA-256 before unpacking and
+compiling it. Native plugins execute inside Hyprland. The code makes no telemetry
+or upload requests. Review the source before enabling it, as with other
+unsandboxed Omarchy plugins.
+
+## Standalone installer
+
+The older standalone install remains available for users who do not want the
+Omarchy service. Use only one installation method.
+
+```bash
+git clone https://github.com/ralphsmith80/omarchy-equal-tiling.git
+cd omarchy-equal-tiling
+python3 install.py --build
+python3 install.py          # Preview changes
+python3 install.py --apply  # Back up and install
+```
+
+This method installs `~/.config/hypr/equal-tiling.lua`, the library and build stamp
+under `~/.local/lib/omarchy-equal-tiling`, and a loader in `hyprland.lua`. Each apply
+prints an exact rollback command. Backups live under
+`~/.local/state/omarchy-equal-tiling/restore-*`. Undo multiple applies in reverse
+order. Rollback refuses to overwrite later local edits. Reconcile those edits
+before retrying. Rebuild and apply after Hyprland updates.
 
 ## Development
 
 ```bash
+omarchy plugin validate .
 python3 -m unittest discover -s tests -v
 python3 install.py --build
 python3 tests/session.py
+python3 tests/plugin_session.py
+EQUAL_TILING_TEST_FRESH=1 python3 tests/plugin_session.py
 ```
 
-The session test requires an active Wayland desktop and `foot`. It opens a
-separate nested Hyprland window with a temporary home. It checks the compiled
-plugin's movement and equal sizing, floating, saved layout toggles, reload,
-installation, repeated apply, and rollback. It does not load the plugin into
-your existing desktop.
+The session tests need an active Wayland desktop and `foot`. They use temporary
+homes and separate nested Hyprland sessions. The plugin test also starts a private
+Omarchy shell and runs the real add, enable, disable, update, and remove commands.
+The fresh-build mode interrupts the first build, then verifies that enabling
+again compiles and activates the plugin. See [VALIDATION.md](VALIDATION.md).
 
 `hy3.patch` applies to upstream commit
 `42b7ed8fd9aefd3f36e5f617afd5071245c67853`. The expected archive SHA-256 is
 `b4b8842cdfb0562f1f4228ef35c746f040379a33ee0912ad089f693206c34076`.
 The patch adds `hl.plugin.hy3.move_cosmic(direction)` and leaves upstream movement
 and focus dispatchers intact. Update the source pin and checksum together, then
-build and run both checks before publishing a release.
+build and run the checks before publishing a release.
 
 ## License and credit
 
 GPL-3.0, see [LICENSE](LICENSE). hy3 is by outfoxxed and its contributors.
 Ralph Smith's package adds the directional movement patch, Omarchy configuration,
-and installer. Omarchy-derived configuration retains its MIT notice in
+service, and installer. Omarchy-derived configuration retains its MIT notice in
 [LICENSE.omarchy](LICENSE.omarchy).

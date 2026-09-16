@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "ralphsmith80.equal-tiling",
+  "name": "COSMIC-style Equal Tiling",
+  "version": "0.2.0",
+  "author": "Ralph Smith",
+  "license": "GPL-3.0",
+  "description": "Replicate Pop!_OS COSMIC-style equal tiling and directional window movement in Omarchy with patched hy3.",
+  "kinds": ["service"],
+  "entryPoints": {"service": "Service.qml"}
+}

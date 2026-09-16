@@ -1,4 +1,6 @@
 -- Equal sibling sizes with hy3. Source is pinned and built against this Hyprland.
+local options = ...
+if type(options) ~= "table" then options = {} end
 local state_home = require("default.hypr.paths").state_home
 -- Omarchy's bootstrap may still put the default state directory first.
 -- Its saved-layout reader must resolve modules from the selected state home.
@@ -9,14 +11,14 @@ for template in package.path:gmatch("[^;]+") do
 end
 package.path = table.concat(search_paths, ";")
 
-local plugin_path = os.getenv("HOME") .. "/.local/lib/omarchy-equal-tiling/libhy3-cosmic.so"
+local plugin_path = options.plugin_path or os.getenv("HOME") .. "/.local/lib/omarchy-equal-tiling/libhy3-cosmic.so"
 local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE") or ""
-local stamp = io.open(os.getenv("HOME") .. "/.local/lib/omarchy-equal-tiling/hyprland-commit", "r")
+local stamp = io.open(options.stamp_path or os.getenv("HOME") .. "/.local/lib/omarchy-equal-tiling/hyprland-commit", "r")
 local commit = stamp and stamp:read("*l")
 if stamp then stamp:close() end
 if not commit or signature:sub(1, #commit + 1) ~= commit .. "_" then return end
 -- Plugin declarations must be present on every reload, even when already loaded.
-hl.plugin.load(plugin_path)
+if not options.loaded then hl.plugin.load(plugin_path) end
 if not hl.plugin.hy3 then return end
 local hy3 = hl.plugin.hy3
 if not hy3.move_cosmic then return end
@@ -94,3 +96,5 @@ o.bind("SUPER + L", "Toggle equal tiling / scrolling", function()
   hl.workspace_rule({workspace = tostring(workspace.id), layout = layout})
   balance_later()
 end)
+
+return true
