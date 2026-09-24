@@ -29,23 +29,28 @@ local function active_hy3()
   return window and not window.floating and window.workspace
     and window.workspace.tiled_layout == "hy3"
 end
-local function balance()
-  local workspace = hl.get_active_workspace()
-  if workspace and workspace.tiled_layout == "hy3" then
-    hl.dispatch(hy3.equalize({scope = "workspace"}))
+
+-- hy3 keeps equal tiles equal as windows open, close, and move, so manual sizes
+-- are never overwritten. Super+Alt+P is the explicit way to change them.
+
+-- Returns the tiled columns of a workspace, left to right, when it has exactly
+-- three side by side and the active window is in the middle one.
+local function priority_columns(active)
+  local columns, by_span = {}, {}
+  for _, window in ipairs(hl.get_windows({workspace = active.workspace.id, floating = false})) do
+    local span = window.at.x .. ":" .. window.size.x
+    if not by_span[span] then
+      by_span[span] = {x = window.at.x, width = window.size.x, window = window}
+      table.insert(columns, by_span[span])
+    end
+    if window.address == active.address then by_span[span].active = true end
   end
-end
-local pending = false
-local function balance_later()
-  if pending then return end
-  pending = true
-  hl.timer(function()
-    pending = false
-    balance()
-  end, {timeout = 60, type = "oneshot"})
-end
-for _, event in ipairs({"window.open", "window.close", "window.move_to_workspace", "workspace.active"}) do
-  hl.on(event, balance_later)
+  if #columns ~= 3 then return nil end
+  table.sort(columns, function(a, b) return a.x < b.x end)
+  for i = 2, 3 do
+    if columns[i].x < columns[i - 1].x + columns[i - 1].width then return nil end
+  end
+  if columns[2].active then return columns end
 end
 
 for _, item in ipairs({{"LEFT", "l"}, {"RIGHT", "r"}, {"UP", "u"}, {"DOWN", "d"}}) do
@@ -62,7 +67,6 @@ for _, item in ipairs({{"LEFT", "l"}, {"RIGHT", "r"}, {"UP", "u"}, {"DOWN", "d"}
       local window = hl.get_active_window()
       if window and window.fullscreen == 0 then
         hl.dispatch(hy3.move_cosmic(direction))
-        balance()
       end
     else
       hl.dispatch(hl.dsp.window.move({direction = direction}))
@@ -71,11 +75,25 @@ for _, item in ipairs({{"LEFT", "l"}, {"RIGHT", "r"}, {"UP", "u"}, {"DOWN", "d"}
 end
 -- Arrangement is controlled entirely by Super+Shift+arrows.
 hl.unbind("SUPER + J")
--- Retiling changes the sibling count, so rebalance after Super+T too.
-hl.unbind("SUPER + T")
-o.bind("SUPER + T", "Toggle window floating/tiling", function()
-  hl.dispatch(hl.dsp.window.float({action = "toggle"}))
-  balance_later()
+-- The middle of three columns takes half the width, like one 4K half of a
+-- 7680 px ultrawide. The side columns share the rest. Press again, or press it
+-- in any other layout, to make every tile on the workspace equal.
+hl.unbind("SUPER + ALT + P")
+o.bind("SUPER + ALT + P", "Toggle priority column / equal tiles", function()
+  local active = hl.get_active_window()
+  if not active_hy3() or active.fullscreen ~= 0 then return end
+  local columns = priority_columns(active)
+  if columns then
+    local side = (columns[1].width + columns[2].width + columns[3].width) / 4
+    -- Exact resizes land within a few pixels because of gaps and rounding.
+    if math.abs(columns[1].width - side) > 4 or math.abs(columns[3].width - side) > 4 then
+      for _, column in ipairs({columns[1], columns[3]}) do
+        hl.dispatch(hl.dsp.window.resize({x = math.floor(side + 0.5), y = column.window.size.y, window = column.window}))
+      end
+      return
+    end
+  end
+  hl.dispatch(hy3.equalize({scope = "workspace"}))
 end)
 -- Keep Omarchy's layout toggle useful with hy3 as the regular tiling layout.
 hl.unbind("SUPER + L")
@@ -94,7 +112,6 @@ o.bind("SUPER + L", "Toggle equal tiling / scrolling", function()
     file:close()
   end
   hl.workspace_rule({workspace = tostring(workspace.id), layout = layout})
-  balance_later()
 end)
 
 return true

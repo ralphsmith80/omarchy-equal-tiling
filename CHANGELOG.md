@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- Add Super+Alt+P. It gives the middle of three columns half the workspace
+  width, and the side columns share the rest. Press it again to make all tiles
+  equal.
+- Stop resetting sizes when windows open, close, move, or float, and when you
+  switch workspaces. hy3 already gives each new tile an equal share.
+- Use Omarchy's default Super+T binding again.
+
 ## 0.2.0
 
 - Add an Omarchy service manifest and QML entry point for `omarchy plugin add`.

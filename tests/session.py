@@ -117,22 +117,41 @@ o = {bind = function(key, description, action, opts) test_bindings[key] = action
                                        - max(w['at'][axis], other['at'][axis]) for axis in (0, 1)]
                             assert min(overlap) <= 0, (w, other)
                 print('PASS: 40 moves preserve focus, all tiles, and non-overlapping geometry', flush=True)
-                ev('test_bindings["SUPER + T"]()')
+                float_toggle = 'hl.dispatch(hl.dsp.window.float({action = "toggle"}))'
+                ev(float_toggle)
                 assert json.loads(ctl('activewindow', '-j'))['floating']
-                ev('test_bindings["SUPER + T"]()')
+                ev(float_toggle)
                 assert not json.loads(ctl('activewindow', '-j'))['floating']
                 ev('hl.dispatch(hl.dsp.focus({workspace="2"}))')
                 for label in 'EFG':
                     open_window(label)
                 ev('hl.dispatch(hl.plugin.hy3.change_group("h"))')
+                def width(label):
+                    return windows()[label]['size'][0]
+                focus('F')
+                ev('test_bindings["SUPER + ALT + P"]()')
+                total = sum(width(label) for label in 'EFG')
+                assert all(abs(width(label) - total / 4) <= 4 for label in 'EG'), windows()
+                assert abs(width('F') - total / 2) <= 8, windows()
+                print('PASS: priority column takes half the width and the sides share the rest', flush=True)
+                priority = {label: width(label) for label in 'EFG'}
+                open_window('H')
+                ev('hl.dispatch(hl.dsp.window.kill())')
+                ev('hl.dispatch(hl.dsp.focus({workspace="1"}))')
+                ev('hl.dispatch(hl.dsp.focus({workspace="2"}))')
+                assert all(abs(width(label) - priority[label]) <= 4 for label in 'EFG'), (priority, windows())
+                print('PASS: open, close, and workspace switch keep manual sizes', flush=True)
+                def equal():
+                    return max(width(label) for label in 'EFG') - min(width(label) for label in 'EFG') <= 2
+                focus('F')
+                ev('test_bindings["SUPER + ALT + P"]()')
+                assert equal(), windows()
+                ev('test_bindings["SUPER + ALT + P"]()')
+                assert not equal(), windows()
                 focus('E')
-                ev('hl.dispatch(hl.dsp.window.resize({x=150, y=0, relative=true}))')
-                assert abs(windows()['E']['size'][0] - windows()['F']['size'][0]) > 20
-                focus('G')
-                ev('test_bindings["SUPER + T"]()')
-                assert windows()['G']['floating']
-                assert abs(windows()['E']['size'][0] - windows()['F']['size'][0]) <= 2
-                print('PASS: floating a resized sibling equalizes the remaining tiles', flush=True)
+                ev('test_bindings["SUPER + ALT + P"]()')
+                assert equal(), windows()
+                print('PASS: priority toggles off, and a side column resets to equal', flush=True)
                 ev('test_bindings["SUPER + L"]()')
                 legacy = home / '.local/state/omarchy/workspace-layouts/2.lua'
                 legacy.parent.mkdir(parents=True)

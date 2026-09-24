@@ -16,8 +16,7 @@ Validated on 2026-09-16 with Hyprland 0.56.2, commit
   overlap. Focus stayed on the moved window.
 - Verified floating and retiling, saved workspace layout toggles, configuration
   reload, and movement after reload.
-- Resized sibling windows, floated one, and verified the remaining tiles became
-  equal. Verified custom XDG_STATE_HOME layouts take priority over conflicting
+- Verified custom XDG_STATE_HOME layouts take priority over conflicting
   default-state files across two reloads, including the missing-plugin fallback.
 - Changed the temporary install's build stamp to an incompatible commit. Reload
   skipped the plugin without configuration errors. Restoring the stamp loaded
@@ -29,6 +28,21 @@ Validated on 2026-09-16 with Hyprland 0.56.2, commit
 The nested test uses Omarchy's module bootstrap and a minimal configuration.
 Other Hyprland releases, multiple monitors, and full desktop startup on another
 machine have not been tested. Reproduce with the commands in README.md.
+
+## Priority column and manual sizes in 0.3.0
+
+Validated on 2026-09-24 with the same Hyprland build.
+
+- Removed automatic balancing. The first grouping check and the 40 random moves
+  still passed, so hy3 keeps tiles equal without it.
+- Pressed Super+Alt+P on the middle of three columns. Each side column was
+  within 4 px of a quarter of the combined width, and the middle column was
+  within 8 px of half.
+- Opened and closed a fourth window and switched workspaces. The three widths
+  stayed within 4 px of their priority sizes.
+- Pressed Super+Alt+P again on the middle column, and then on a side column
+  while priority was on. Both times, all tiles became equal.
+- Ran the plugin lifecycle test and all 16 unit tests again. All passed.
 
 ## Omarchy plugin lifecycle in 0.2.0
 
