@@ -10,8 +10,9 @@ System76, and it does not reproduce every COSMIC desktop feature.
 
 Press Super+Shift+an arrow to move the focused window through the layout tree.
 Moving across a split creates a group, enters a neighboring group, or steps out
-of the current group. At the workspace edge, movement stops. Windows in each
-group share its space equally.
+of the current group. At the workspace edge, movement stops. New windows get an
+equal share of their group, and the plugin keeps sizes you set by hand. A
+Hyprland config reload rebuilds the layout with equal tiles.
 
 For example, with `A | D | (B / C)`, focus D and press Right twice. The result is
 `A | (B / D / C)`. B, D, and C share the right half equally.
@@ -62,14 +63,20 @@ disable and enable the plugin to retry.
 | --- | --- |
 | Super+arrows | Focus a window through hy3's layout tree |
 | Super+Shift+arrows | Move a window through tiling groups |
-| Super+T | Float or retile the window, then balance the group |
+| Super+Alt+P | Toggle the priority column, or make all tiles equal |
 | Super+L | Switch the workspace between equal tiling and scrolling |
 
-These replace Omarchy's directional focus, directional swap, floating, and
-workspace layout shortcuts while enabled. Super+J, Omarchy's split toggle, is
+These replace Omarchy's directional focus, directional swap, and workspace
+layout shortcuts while enabled. Super+J, Omarchy's split toggle, is
 disabled because Super+Shift+arrows controls the arrangement. Other shortcuts
 remain available. Movement does not move windows across monitors. This plugin
 does not reproduce COSMIC's tab behavior.
+
+Super+Alt+P works on a workspace with three columns side by side. Focus the
+middle column and press it. That column takes half the width, and the two side
+columns share the other half. On a 7680 px ultrawide, the middle column is the
+width of one 4K display. Press Super+Alt+P again to make all tiles equal. In
+any other layout, the shortcut makes all tiles on the workspace equal.
 
 Super+L saves the workspace's layout choice in Omarchy's workspace state. Saved
 hy3 choices fall back to dwindle while hy3 is unavailable.
