@@ -11,7 +11,8 @@ System76, and it does not reproduce every COSMIC desktop feature.
 Press Super+Shift+an arrow to move the focused window through the layout tree.
 Moving across a split creates a group, enters a neighboring group, or steps out
 of the current group. At the workspace edge, movement stops. New windows get an
-equal share of their group, and the plugin never resets sizes you set by hand.
+equal share of their group, and the plugin keeps sizes you set by hand. A
+Hyprland config reload rebuilds the layout with equal tiles.
 
 For example, with `A | D | (B / C)`, focus D and press Right twice. The result is
 `A | (B / D / C)`. B, D, and C share the right half equally.

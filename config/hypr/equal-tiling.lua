@@ -30,19 +30,24 @@ local function active_hy3()
     and window.workspace.tiled_layout == "hy3"
 end
 
--- hy3 keeps equal tiles equal as windows open, close, and move, so manual sizes
--- are never overwritten. Super+Alt+P is the explicit way to change them.
+-- hy3 keeps equal tiles equal as windows open, close, and move, so this module
+-- does not rebalance and manual sizes stay. A config reload rebuilds the layout
+-- with equal tiles. Super+Alt+P is the explicit way to change sizes.
 
 -- Returns the tiled columns of a workspace, left to right, when it has exactly
--- three side by side and the active window is in the middle one.
+-- three side by side and the active window is in the middle one. Rows of three
+-- look the same, so each column keeps all of its windows.
+-- Intentional: a pseudotiled window reports its own size, not its tile, and can
+-- skew the result. The Lua API does not expose pseudotile state.
 local function priority_columns(active)
   local columns, by_span = {}, {}
   for _, window in ipairs(hl.get_windows({workspace = active.workspace.id, floating = false})) do
     local span = window.at.x .. ":" .. window.size.x
     if not by_span[span] then
-      by_span[span] = {x = window.at.x, width = window.size.x, window = window}
+      by_span[span] = {x = window.at.x, width = window.size.x, windows = {}}
       table.insert(columns, by_span[span])
     end
+    table.insert(by_span[span].windows, window)
     if window.address == active.address then by_span[span].active = true end
   end
   if #columns ~= 3 then return nil end
@@ -75,6 +80,22 @@ for _, item in ipairs({{"LEFT", "l"}, {"RIGHT", "r"}, {"UP", "u"}, {"DOWN", "d"}
 end
 -- Arrangement is controlled entirely by Super+Shift+arrows.
 hl.unbind("SUPER + J")
+-- Sets the side columns to a quarter of the row each, so the middle gets half.
+local function apply_priority(columns)
+  local side = (columns[1].width + columns[2].width + columns[3].width) / 4
+  -- hy3 rejects a resize that leaves the middle column without width.
+  -- Shrinking the wider side first only gives the middle more, so both succeed.
+  local sides = {columns[1], columns[3]}
+  table.sort(sides, function(a, b) return a.width > b.width end)
+  for _, column in ipairs(sides) do
+    -- A stacked column moves on its first resize; the rest are no-ops.
+    -- In rows of three, each row gets the same split.
+    for _, window in ipairs(column.windows) do
+      hl.dispatch(hl.dsp.window.resize({x = math.floor(side + 0.5), y = window.size.y, window = window}))
+    end
+  end
+end
+
 -- The middle of three columns takes half the width, like one 4K half of a
 -- 7680 px ultrawide. The side columns share the rest. Press again, or press it
 -- in any other layout, to make every tile on the workspace equal.
@@ -84,12 +105,15 @@ o.bind("SUPER + ALT + P", "Toggle priority column / equal tiles", function()
   if not active_hy3() or active.fullscreen ~= 0 then return end
   local columns = priority_columns(active)
   if columns then
-    local side = (columns[1].width + columns[2].width + columns[3].width) / 4
-    -- Exact resizes land within a few pixels because of gaps and rounding.
-    if math.abs(columns[1].width - side) > 4 or math.abs(columns[3].width - side) > 4 then
-      for _, column in ipairs({columns[1], columns[3]}) do
-        hl.dispatch(hl.dsp.window.resize({x = math.floor(side + 0.5), y = column.window.size.y, window = column.window}))
-      end
+    local total = columns[1].width + columns[2].width + columns[3].width
+    local tolerance = total / 100
+    if math.abs(columns[1].width - total / 4) > tolerance or math.abs(columns[3].width - total / 4) > tolerance then
+      apply_priority(columns)
+      -- hy3 converts pixels to ratios against the width with gaps, so a large
+      -- move lands a few pixels short. Window sizes report the final layout at
+      -- once, even while animating, so a second pass corrects the rest.
+      columns = priority_columns(active)
+      if columns then apply_priority(columns) end
       return
     end
   end

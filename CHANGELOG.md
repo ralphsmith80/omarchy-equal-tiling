@@ -6,7 +6,8 @@
   width, and the side columns share the rest. Press it again to make all tiles
   equal.
 - Stop resetting sizes when windows open, close, move, or float, and when you
-  switch workspaces. hy3 already gives each new tile an equal share.
+  switch workspaces. hy3 already gives each new tile an equal share. A config
+  reload still rebuilds the layout with equal tiles.
 - Use Omarchy's default Super+T binding again.
 
 ## 0.2.0

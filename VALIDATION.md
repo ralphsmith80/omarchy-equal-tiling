@@ -42,6 +42,13 @@ Validated on 2026-09-24 with the same Hyprland build.
   stayed within 4 px of their priority sizes.
 - Pressed Super+Alt+P again on the middle column, and then on a side column
   while priority was on. Both times, all tiles became equal.
+- Made the right column over 75% wide, then pressed Super+Alt+P. Both side
+  columns reached a quarter. The wider side is resized first, and a second pass
+  corrects the few pixels that hy3 loses to gaps.
+- Built two rows of three windows and pressed Super+Alt+P on the top middle
+  window. Both rows got the priority split.
+- With window animations slowed down, Lua reported the final window size right
+  after a resize. The second pass therefore reads settled sizes.
 - Ran the plugin lifecycle test and all 16 unit tests again. All passed.
 
 ## Omarchy plugin lifecycle in 0.2.0

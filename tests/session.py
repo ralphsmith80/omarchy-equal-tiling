@@ -128,6 +128,13 @@ o = {bind = function(key, description, action, opts) test_bindings[key] = action
                 ev('hl.dispatch(hl.plugin.hy3.change_group("h"))')
                 def width(label):
                     return windows()[label]['size'][0]
+                # A right column over 75% wide leaves no room to grow the left one first.
+                # hy3 resizes against one neighbor, so shrink E before widening G.
+                total = sum(width(label) for label in 'EFG')
+                for label, share in (('E', .1), ('G', .8)):
+                    focus(label)
+                    ev(f'hl.dispatch(hl.dsp.window.resize({{x={int(total * share)}, y={windows()[label]["size"][1]}}}))')
+                assert width('G') > sum(width(label) for label in 'EFG') * .75, windows()
                 focus('F')
                 ev('test_bindings["SUPER + ALT + P"]()')
                 total = sum(width(label) for label in 'EFG')
@@ -152,6 +159,23 @@ o = {bind = function(key, description, action, opts) test_bindings[key] = action
                 ev('test_bindings["SUPER + ALT + P"]()')
                 assert equal(), windows()
                 print('PASS: priority toggles off, and a side column resets to equal', flush=True)
+                ev('hl.dispatch(hl.dsp.focus({workspace="3"}))')
+                for label in 'PQ':
+                    open_window(label)
+                ev('hl.dispatch(hl.plugin.hy3.change_group("v"))')
+                for first, rest in (('P', 'P2 P3'), ('Q', 'Q2 Q3')):
+                    focus(first)
+                    ev('hl.dispatch(hl.plugin.hy3.make_group("h", {ephemeral=true}))')
+                    for label in rest.split():
+                        open_window(label)
+                rows = [['P', 'P2', 'P3'], ['Q', 'Q2', 'Q3']]
+                assert all(len({windows()[label]['at'][0] for label in column}) == 1 for column in zip(*rows)), windows()
+                focus('P2')
+                ev('test_bindings["SUPER + ALT + P"]()')
+                for row in rows:
+                    total = sum(width(label) for label in row)
+                    assert all(abs(width(label) - total / 4) <= 4 for label in (row[0], row[2])), windows()
+                print('PASS: rows of three each get the priority split', flush=True)
                 ev('test_bindings["SUPER + L"]()')
                 legacy = home / '.local/state/omarchy/workspace-layouts/2.lua'
                 legacy.parent.mkdir(parents=True)
