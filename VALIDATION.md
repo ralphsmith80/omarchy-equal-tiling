@@ -91,3 +91,22 @@ open after review and runtime verification.
   unexpected uploads or telemetry were found in the reviewed code.
 - Retained upstream GPL and Omarchy MIT notices. The README credits COSMIC as
   the intended behavior and states the limits of this independent implementation.
+## Omarchy window controls in 0.3.1
+
+- Built the pinned native source with the updated patch against Hyprland 0.56.2.
+- Ran `python3 tests/session.py` in a disposable nested compositor. Verified
+  centered 1:1 and 4:3 single-window ratios, tolerance, fullscreen transitions,
+  adding and closing a second tile, disabling the ratio, and pseudotiling.
+- Verified that Omarchy's Super+J binding remains registered and changes a split
+  in both directions. Native Super+G groups retained usable geometry, accepted a
+  second window, switched tabs by cycle and index, extracted and rejoined a
+  window, and dissolved back into tiles.
+- The existing movement, equal sizing, priority column, floating, reload,
+  saved-layout, build mismatch, and installer rollback checks also passed.
+- Ran `python3 tests/plugin_session.py` with a private Omarchy shell. The actual
+  square-toggle command resized the window after the service reapplied the
+  layout, and toggling off restored its size. Super+J remained registered.
+  Add, enable, disable, update, reload, ownership conflict, and removal passed.
+- All 16 installer and service unit tests passed. `omarchy plugin validate .`
+  and `git diff --check` passed. An independent code review found no P1 or P2
+  findings.

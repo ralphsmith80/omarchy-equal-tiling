@@ -8,6 +8,7 @@ import signal
 import subprocess
 import tempfile
 import time
+from window_controls import check_controls
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,7 +26,12 @@ def run():
 hl.monitor({output = "", mode = "preferred", position = "0x0", scale = 1})
 hl.config({general = {gaps_in = 5, gaps_out = 10}, input = {follow_mouse = 0}, animations = {enabled = false}, misc = {disable_hyprland_logo = true, disable_splash_rendering = true}})
 test_bindings = {}
-o = {bind = function(key, description, action, opts) test_bindings[key] = action; hl.bind(key, action, opts or {}) end}
+o = {bind = function(key, description, action, opts)
+  if type(action) == "string" then action = hl.dsp.exec_cmd(action) end
+  test_bindings[key] = action
+  hl.bind(key, action, opts or {})
+end}
+require("default.hypr.bindings.tiling")
 '''
         config.write_text(original)
         env = dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(home / '.config'),
@@ -84,6 +90,7 @@ o = {bind = function(key, description, action, opts) test_bindings[key] = action
                 time.sleep(1)
                 assert not ctl('configerrors'), ctl('configerrors')
                 assert 'hy3' in ctl('plugin', 'list'), ctl('plugin', 'list')
+                check_controls(ctl, ev, windows, focus, open_window)
                 for label in 'AB':
                     open_window(label)
                 ev('hl.dispatch(hl.plugin.hy3.change_group("h"))')

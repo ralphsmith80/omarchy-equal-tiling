@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1
+
+- Honor Omarchy's single-window aspect ratio and tolerance, including the
+  Super+Ctrl+Backspace square-window toggle.
+- Keep Super+J available to switch a split between horizontal and vertical.
+- Fix native window grouping with Super+G by keeping the layout's target
+  references in sync when Hyprland creates or dissolves a group.
+
 ## 0.3.0
 
 - Add Super+Alt+P. It gives the middle of three columns half the workspace

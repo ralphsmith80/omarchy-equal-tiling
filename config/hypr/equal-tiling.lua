@@ -78,8 +78,6 @@ for _, item in ipairs({{"LEFT", "l"}, {"RIGHT", "r"}, {"UP", "u"}, {"DOWN", "d"}
     end
   end)
 end
--- Arrangement is controlled entirely by Super+Shift+arrows.
-hl.unbind("SUPER + J")
 -- Sets the side columns to a quarter of the row each, so the middle gets half.
 local function apply_priority(columns)
   local side = (columns[1].width + columns[2].width + columns[3].width) / 4
