@@ -1,8 +1,52 @@
 diff --git i/src/Hy3Layout.cpp w/src/Hy3Layout.cpp
-index 7f91608..bc19c19 100644
+index 7f91608..d4929fd 100644
 --- i/src/Hy3Layout.cpp
 +++ w/src/Hy3Layout.cpp
-@@ -1474,6 +1474,83 @@ bool shiftMatchesLayout(Hy3GroupLayout layout, ShiftDirection direction) {
+@@ -437,6 +437,29 @@ void Hy3Layout::recalcGeometry(bool no_animation) {
+ 	auto ma = workspace->m_monitor->logicalBoxMinusReserved();
+ 	auto wa = space->workArea();
+ 
++	// Explicit visual boxes bypass WindowTarget's single-window padding. Apply
++	// the same ratio and tolerance here, before distributing hy3's own gaps.
++	static const auto ratio = CConfigValue<Config::VEC2>("layout:single_window_aspect_ratio");
++	static const auto tolerance = CConfigValue<Config::FLOAT>("layout:single_window_aspect_ratio_tolerance");
++	if (algo->tiledTargets() == 1 && (*ratio).x > 0 && (*ratio).y > 0
++	    && !Fullscreen::controller()->hasFullscreen(workspace, std::nullopt)) {
++		const auto requested = (*ratio).x / (*ratio).y;
++		const auto original = wa.w / wa.h;
++		if (requested < original) {
++			const auto padding = wa.w - wa.h * requested;
++			if (padding / 2 > *tolerance * wa.w) {
++				wa.x += padding / 2;
++				wa.w -= padding;
++			}
++		} else if (requested > original) {
++			const auto padding = wa.h - wa.w / requested;
++			if (padding / 2 > *tolerance * wa.h) {
++				wa.y += padding / 2;
++				wa.h -= padding;
++			}
++		}
++	}
++
+ 	if (this->root) {
+ 	this->root->visualBox = wa;
+ 	this->root->recalcSizePosRecursive(CBox{
+@@ -521,7 +544,12 @@ void Hy3Layout::resizeTarget(const Vector2D& delta, SP<Layout::ITarget> target,
+ }
+ 
+ void Hy3Layout::swapTargets(SP<Layout::ITarget> a, SP<Layout::ITarget> b) {
+-	// todo
++	// Hyprland also uses this to replace a window with its native tab group.
++	// Keep the tree position and split ratio when either target is replaced.
++	auto* nodeA = this->getNodeFromTarget(a);
++	auto* nodeB = this->getNodeFromTarget(b);
++	if (nodeA) static_cast<Hy3TargetNode*>(nodeA)->target = b;
++	if (nodeB) static_cast<Hy3TargetNode*>(nodeB)->target = a;
+ }
+ 
+ void Hy3Layout::moveTargetInDirection(SP<Layout::ITarget> t, Math::eDirection dir, bool silent) {
+@@ -1474,6 +1502,83 @@ bool shiftMatchesLayout(Hy3GroupLayout layout, ShiftDirection direction) {
  	    || (layout != Hy3GroupLayout::SplitV && !shiftIsVertical(direction));
  }
  

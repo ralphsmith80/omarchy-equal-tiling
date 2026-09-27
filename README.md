@@ -67,9 +67,11 @@ disable and enable the plugin to retry.
 | Super+L | Switch the workspace between equal tiling and scrolling |
 
 These replace Omarchy's directional focus, directional swap, and workspace
-layout shortcuts while enabled. Super+J, Omarchy's split toggle, is
-disabled because Super+Shift+arrows controls the arrangement. Other shortcuts
-remain available. Movement does not move windows across monitors. This plugin
+layout shortcuts while enabled. Omarchy's Super+J split toggle, Super+G window
+grouping, and related tab shortcuts remain available. Super+Ctrl+Backspace
+centers a lone tile using Omarchy's single-window square setting. Custom
+`layout.single_window_aspect_ratio` and tolerance values also apply.
+Movement does not move windows across monitors. This plugin
 does not reproduce COSMIC's tab behavior.
 
 Super+Alt+P works on a workspace with three columns side by side. Focus the
@@ -155,8 +157,9 @@ again compiles and activates the plugin. See [VALIDATION.md](VALIDATION.md).
 `hy3.patch` applies to upstream commit
 `42b7ed8fd9aefd3f36e5f617afd5071245c67853`. The expected archive SHA-256 is
 `b4b8842cdfb0562f1f4228ef35c746f040379a33ee0912ad089f693206c34076`.
-The patch adds `hl.plugin.hy3.move_cosmic(direction)` and leaves upstream movement
-and focus dispatchers intact. Update the source pin and checksum together, then
+The patch adds `hl.plugin.hy3.move_cosmic(direction)`, honors Hyprland's single-window
+aspect settings, and implements target swapping for native window groups.
+It leaves upstream movement and focus dispatchers intact. Update the source pin and checksum together, then
 build and run the checks before publishing a release.
 
 ## License and credit

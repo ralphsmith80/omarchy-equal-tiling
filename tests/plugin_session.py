@@ -50,7 +50,12 @@ def run():
 hl.monitor({output="", mode="preferred", position="0x0", scale=1})
 hl.config({input={follow_mouse=0}, animations={enabled=false}})
 test_bindings = {}
-o = {bind=function(key, description, action, opts) test_bindings[key]=action; hl.bind(key, action, opts or {}) end}
+o = {bind=function(key, description, action, opts)
+  if type(action) == "string" then action = hl.dsp.exec_cmd(action) end
+  test_bindings[key]=action; hl.bind(key, action, opts or {})
+end}
+require("default.hypr.bindings.tiling")
+require("default.hypr.toggles")
 '''
         config.write_text(original)
         shell_config = home / '.config/omarchy/shell.json'
@@ -121,7 +126,19 @@ o = {bind=function(key, description, action, opts) test_bindings[key]=action; hl
                 assert not (config.parent/'equal-tiling.lua').exists()
                 assert not ctl('configerrors'),ctl('configerrors')
                 print('PASS: real plugin add/enable loads native hy3 without editing Hyprland files',flush=True)
-                for label in 'ABC':
+                ev('hl.exec_cmd("foot --config=/dev/null --title=A sleep 300")')
+                def first_window():
+                    return next((w for w in json.loads(ctl('clients','-j')) if w['title']=='A'),None)
+                wait_for(first_window)
+                full_size=first_window()['size']
+                command('omarchy-hyprland-window-single-square-aspect-toggle')
+                wait_for(lambda: abs(first_window()['size'][0]-first_window()['size'][1]) <= 2)
+                assert first_window()['size'] != full_size
+                command('omarchy-hyprland-window-single-square-aspect-toggle')
+                wait_for(lambda: first_window()['size'] == full_size)
+                assert any(b['modmask']==64 and b['key'].lower()=='j' for b in json.loads(ctl('binds','-j')))
+                print('PASS: real Omarchy square toggle survives service reload and preserves Super+J',flush=True)
+                for label in 'BC':
                     ev(f'hl.exec_cmd("foot --config=/dev/null --title={label} sleep 300")')
                     wait_for(lambda: any(w['title']==label for w in json.loads(ctl('clients','-j'))))
                 ev('test_bindings["SUPER + SHIFT + DOWN"]()')
