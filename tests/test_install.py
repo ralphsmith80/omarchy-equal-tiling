@@ -177,6 +177,18 @@ class RestoreTest(unittest.TestCase):
             (build / "libhy3-cosmic.so").write_bytes(b"corrupt")
             self.assertFalse(omarchy.build_current(signature))
 
+    def test_builds_from_the_inherited_environment_policy_are_not_reused(self):
+        with patch.object(omarchy, "BUILD", self.home):
+            with patch.object(Path, "read_bytes", return_value=b"test build inputs"):
+                signature = omarchy.build_signature()
+            legacy = {name: value for name, value in signature.items() if name != "build_policy"}
+            for name in omarchy.OUTPUTS:
+                (self.home / name).write_bytes(b"old library")
+            metadata = {"inputs": legacy, "outputs": {
+                name: omarchy.state(self.home / name) for name in omarchy.OUTPUTS}}
+            (self.home / "signature.json").write_text(json.dumps(metadata))
+            self.assertFalse(omarchy.build_current(signature))
+
     def test_edit_after_collection_is_rejected_before_any_write(self):
         main = self.home / ".config/hypr/hyprland.lua"
         main.parent.mkdir(parents=True)

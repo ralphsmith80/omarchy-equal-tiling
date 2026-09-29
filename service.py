@@ -10,13 +10,13 @@ import select
 import signal
 import socket
 import subprocess
-import sys
 import time
 
 import install
 
 PLUGIN_ID = "ralphsmith80.equal-tiling"
 ROOT = Path(__file__).resolve().parent
+WORKER = ["/usr/bin/python3", "-E", "-S", "-B", str(ROOT / "service.py")]
 STOP = False
 
 
@@ -75,7 +75,7 @@ def notify(message):
 
 def build_while_enabled():
     """Keep compiler work outside the watched checkout; stop it on disable."""
-    process = subprocess.Popen([sys.executable, "-B", str(ROOT / "service.py"), "--build"], start_new_session=True)
+    process = subprocess.Popen([*WORKER, "--build"], start_new_session=True)
     try:
         while process.poll() is None:
             if STOP or not enabled():
@@ -229,7 +229,7 @@ def main():
     try:
         restart = run()
         if restart and enabled() and not STOP:
-            os.execv(sys.executable, [sys.executable, "-B", str(ROOT / "service.py")])
+            os.execv(WORKER[0], WORKER)
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         notify(str(error))
         raise SystemExit(1) from None
