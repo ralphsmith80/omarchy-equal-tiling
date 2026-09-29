@@ -24,7 +24,7 @@ plugin system. Older `.conf` setups are unsupported. Other Hyprland releases
 need a compatible hy3 revision and a fresh build. Keep Omarchy's standard
 `~/.config` location.
 
-The build needs Python 3.9+, curl, tar, patch, CMake, Ninja, pkg-config, a C++23
+The build needs Python 3.9+, curl 8.4.0+, tar, patch, CMake, Ninja, pkg-config, a C++23
 compiler, and development files for Hyprland, pixman, libdrm, Pango, libinput,
 Wayland, and xkbcommon. The plugin does not install system packages or use sudo.
 The first build requires internet access to download pinned hy3 source.
@@ -113,7 +113,18 @@ saved configuration on disable. It follows Omarchy's enabled service state and
 allows one worker per Hyprland session.
 
 The builder verifies the pinned source archive's SHA-256 before unpacking and
-compiling it. Native plugins execute inside Hyprland. The code makes no telemetry
+compiling it. Downloads use HTTPS only, with a 15-second connection timeout,
+a 120-second transfer deadline, and an 8 MiB size limit, including responses
+without a declared size. Checksum verification reads fixed-size chunks.
+
+The worker starts `/usr/bin/python3` with Python environment and site startup
+hooks disabled. It receives only home, cache, state, runtime, Hyprland session,
+and notification bus paths. Build commands use fixed tools under `/usr/bin`,
+an empty temporary home, and a fixed environment. Custom compiler flags,
+toolchains, loader settings, proxy variables, and user curl configuration are
+not used. Updating from the older build policy requires a fresh native build.
+
+Native plugins execute inside Hyprland. The code makes no telemetry
 or upload requests. Review the source before enabling it, as with other
 unsandboxed Omarchy plugins.
 
@@ -142,12 +153,15 @@ before retrying. Rebuild and apply after Hyprland updates.
 ```bash
 omarchy plugin validate .
 python3 -m unittest discover -s tests -v
+python3 tests/launcher.py
 python3 install.py --build
 python3 tests/session.py
 python3 tests/plugin_session.py
 EQUAL_TILING_TEST_FRESH=1 python3 tests/plugin_session.py
 ```
 
+The download tests use curl and OpenSSL against a local HTTPS server. The launcher
+test checks the actual QML process environment with an offscreen Quickshell.
 The session tests need an active Wayland desktop and `foot`. They use temporary
 homes and separate nested Hyprland sessions. The plugin test also starts a private
 Omarchy shell and runs the real add, enable, disable, update, and remove commands.

@@ -1,5 +1,38 @@
 # Validation
 
+## Build security changes
+
+Validated on 2026-09-29 against Hyprland 0.56.2 and curl 8.22.0.
+
+- Rebuilt the pinned native source with invalid inherited PATH, CC, CXX,
+  CMAKE_TOOLCHAIN_FILE, CMAKE_PROJECT_INCLUDE, CMAKE_PROJECT_INCLUDE_BEFORE,
+  CXXFLAGS, LDFLAGS, LD_PRELOAD, PYTHONPATH, PKG_CONFIG_PATH, TAR_OPTIONS, and
+  CURL_HOME values. The build used the system compiler and completed successfully.
+- Tested actual curl transfers against a local HTTPS server. Oversized responses
+  with and without Content-Length stopped with exit 63. A stalled response hit
+  the total deadline with exit 28. Invalid checksums removed the download.
+  Valid downloads ignored user curl configuration. Older curl versions were
+  rejected before transfer because they lack a streaming size limit.
+- Checked the actual QML launcher in an offscreen Quickshell with a fake Python
+  on PATH and a Python startup hook. The worker used `/usr/bin/python3`, disabled
+  site startup and Python environment controls, and received only the documented
+  session environment. This test also caught and fixed a missing Quickshell.Io
+  import that a full Omarchy shell had masked.
+- Ran the fresh-build plugin lifecycle test in a disposable home, nested
+  compositor, and private shell. Cancelling a build, enabling again, loading hy3,
+  reload, disable/enable, rapid toggles, ownership conflict, update, shell restart,
+  and removal passed. The test did not edit the active desktop's configuration.
+- All 22 automated tests passed. The separate layout and installer session test,
+  manifest validation, and diff checks passed. An independent scenario review
+  found no P1 or P2 issues. The QML linter reports the Quickshell.Io import as
+  unused, but the standalone launcher test confirms it is needed to register
+  the process context type.
+
+The catalog's approval and automated validation are separate from these local
+checks. The corrected commit still needs marketplace revalidation and review.
+
+## Initial validation
+
 Validated on 2026-09-16 with Hyprland 0.56.2, commit
 `efb50993780079460b0cbed1363e2166a2de1d9f`, on Linux x86_64.
 

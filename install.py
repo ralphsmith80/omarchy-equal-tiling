@@ -22,6 +22,9 @@ BUILD = PROFILE / ".build"
 OMARCHY = Path(os.environ.get("OMARCHY_PATH", "/usr/share/omarchy"))
 HY3_COMMIT = "42b7ed8fd9aefd3f36e5f617afd5071245c67853"
 ARCHIVE_SHA256 = "b4b8842cdfb0562f1f4228ef35c746f040379a33ee0912ad089f693206c34076"
+ARCHIVE_MAX_BYTES = 8 * 1024 * 1024
+DOWNLOAD_CONNECT_SECONDS = 15
+DOWNLOAD_SECONDS = 120
 OUTPUTS = {"libhy3-cosmic.so": ".local/lib/omarchy-equal-tiling/libhy3-cosmic.so",
            "hyprland-commit": ".local/lib/omarchy-equal-tiling/hyprland-commit"}
 
@@ -68,7 +71,8 @@ def atomic_write(path, data, mode):
 
 
 def build_signature():
-    return {"upstream": HY3_COMMIT, "arch": platform.machine(),
+    # Do not reuse libraries compiled with the old inherited environment.
+    return {"build_policy": 2, "upstream": HY3_COMMIT, "arch": platform.machine(),
             "headers": hashlib.sha256(Path("/usr/include/hyprland/src/version.h").read_bytes()).hexdigest(),
             "patch": hashlib.sha256((PROFILE / "hy3.patch").read_bytes()).hexdigest()}
 
@@ -96,6 +100,43 @@ def build_lock():
         yield
 
 
+def build_environment(home):
+    """Allow only fixed values, excluding compiler, loader, and user config hooks."""
+    return {"PATH": "/usr/bin", "HOME": str(home), "LC_ALL": "C.UTF-8"}
+
+
+def download_archive(archive, env):
+    """Bound curl's transfer before verifying the archive in constant memory."""
+    version = subprocess.run(["/usr/bin/curl", "--disable", "--version"],
+                             env=env, cwd=archive.parent, check=True,
+                             capture_output=True, text=True, timeout=5)
+    match = re.match(r"curl (\d+)\.(\d+)\.(\d+)", version.stdout)
+    if not match or tuple(map(int, match.groups())) < (8, 4, 0):
+        raise ValueError("curl 8.4.0 or newer is required to limit downloads without Content-Length.")
+    url = f"https://codeload.github.com/outfoxxed/hy3/tar.gz/{HY3_COMMIT}"
+    try:
+        subprocess.run([
+            "/usr/bin/curl", "--disable", "--fail", "--silent", "--show-error",
+            "--location", "--proto", "=https", "--proto-redir", "=https",
+            "--connect-timeout", str(DOWNLOAD_CONNECT_SECONDS),
+            "--max-time", str(DOWNLOAD_SECONDS), "--max-filesize", str(ARCHIVE_MAX_BYTES),
+            "--output", str(archive), url,
+        ], env=env, cwd=archive.parent, check=True, timeout=DOWNLOAD_SECONDS + 5)
+        digest = hashlib.sha256()
+        size = 0
+        with archive.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(65536), b""):
+                size += len(chunk)
+                if size > ARCHIVE_MAX_BYTES:
+                    raise ValueError("hy3 download exceeds the archive size limit.")
+                digest.update(chunk)
+        if digest.hexdigest() != ARCHIVE_SHA256:
+            raise ValueError("hy3 download checksum mismatch; nothing was built or installed.")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        archive.unlink(missing_ok=True)
+        raise
+
+
 def build_hy3():
     signature = build_signature()
     BUILD.mkdir(parents=True, exist_ok=True)
@@ -106,16 +147,20 @@ def build_hy3():
         (BUILD / "signature.json").unlink(missing_ok=True)
         with tempfile.TemporaryDirectory(prefix="compile-", dir=BUILD) as temporary:
             work = Path(temporary)
+            home = work / "home"
+            home.mkdir()
+            env = build_environment(home)
             archive = work / "hy3.tar.gz"
-            url = f"https://codeload.github.com/outfoxxed/hy3/tar.gz/{HY3_COMMIT}"
-            subprocess.run(["curl", "-fsSL", "--retry", "2", url, "-o", str(archive)], check=True)
-            if hashlib.sha256(archive.read_bytes()).hexdigest() != ARCHIVE_SHA256:
-                raise ValueError("hy3 download checksum mismatch; nothing was built or installed.")
-            subprocess.run(["tar", "-xzf", str(archive), "-C", str(work)], check=True)
+            download_archive(archive, env)
+            subprocess.run(["/usr/bin/tar", "-xzf", str(archive), "-C", str(work)], env=env, cwd=work, check=True)
             source = work / f"hy3-{HY3_COMMIT}"
-            subprocess.run(["patch", "--batch", "--forward", "-p1", "-i", str(PROFILE / "hy3.patch")], cwd=source, check=True)
-            subprocess.run(["cmake", "-S", str(source), "-B", str(work / "out"), "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release"], check=True)
-            subprocess.run(["cmake", "--build", str(work / "out"), "--parallel", "4"], check=True)
+            subprocess.run(["/usr/bin/patch", "--batch", "--forward", "-p1", "-i", str(PROFILE / "hy3.patch")], env=env, cwd=source, check=True)
+            subprocess.run(["/usr/bin/cmake", "-S", str(source), "-B", str(work / "out"),
+                            "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
+                            "-DCMAKE_C_COMPILER=/usr/bin/cc", "-DCMAKE_CXX_COMPILER=/usr/bin/c++",
+                            "-DCMAKE_MAKE_PROGRAM=/usr/bin/ninja", "-DPKG_CONFIG_EXECUTABLE=/usr/bin/pkg-config"],
+                           env=env, cwd=work, check=True)
+            subprocess.run(["/usr/bin/cmake", "--build", str(work / "out"), "--parallel", "4"], env=env, cwd=work, check=True)
             header = Path("/usr/include/hyprland/src/version.h").read_text()
             commit = re.search(r'^#define\s+GIT_COMMIT_HASH\s+"([0-9a-f]+)"', header, re.MULTILINE)
             if not commit:
@@ -329,7 +374,7 @@ def main():
             else:
                 files, expected = collect_files(args)
             restore_files(args, files, expected)
-    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1
     return 0

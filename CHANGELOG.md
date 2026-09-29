@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Build with fixed system tools and a clean environment. Start Python without
+  inherited loader settings or Python startup hooks.
+- Limit archive downloads to 8 MiB and 120 seconds, with a 15-second connection
+  timeout. Require curl 8.4.0 or newer and verify checksums in fixed-size chunks.
+- Rebuild native libraries cached before the build environment changes.
+
 ## 0.3.1
 
 - Honor Omarchy's single-window aspect ratio and tolerance, including the
