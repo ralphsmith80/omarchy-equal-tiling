@@ -8,6 +8,8 @@ while the plugin is enabled. It does not edit your Hyprland configuration files.
 This is an independent implementation. It is not affiliated with or endorsed by
 System76, and it does not reproduce every COSMIC desktop feature.
 
+![Equal tiling with one full-height window beside three equally sized windows](preview.png)
+
 Press Super+Shift+an arrow to move the focused window through the layout tree.
 Moving across a split creates a group, enters a neighboring group, or steps out
 of the current group. At the workspace edge, movement stops. New windows get an
@@ -28,6 +30,35 @@ The build needs Python 3.9+, curl 8.4.0+, tar, patch, CMake, Ninja, pkg-config, 
 compiler, and development files for Hyprland, pixman, libdrm, Pango, libinput,
 Wayland, and xkbcommon. The plugin does not install system packages or use sudo.
 The first build requires internet access to download pinned hy3 source.
+
+On an up-to-date Omarchy installation, install the build dependencies from a
+terminal:
+
+```bash
+omarchy pkg add base-devel cmake ninja python curl pixman libdrm pango libinput wayland libxkbcommon
+```
+
+This command installs missing system packages and may ask for your password.
+The plugin does not run it for you. Arch includes development headers in these
+packages. Hyprland's headers come from the installed `hyprland` package and must
+match your compositor. After a Hyprland update, log out and back in before enabling
+the plugin.
+
+To check setup before enabling, add the plugin without `--enable`, then run:
+
+```bash
+omarchy plugin add https://github.com/ralphsmith80/omarchy-equal-tiling --yes
+python3 ~/.config/omarchy/plugins/ralphsmith80.equal-tiling/install.py --check
+omarchy plugin enable ralphsmith80.equal-tiling
+```
+
+From a checkout, use `python3 install.py --check`. It checks the system tools,
+curl version, C++23 language support, Hyprland headers, and development libraries.
+Missing requirements include their Arch package names. The check makes no network
+requests and does not install packages or change your desktop. A passing check
+does not guarantee that the pinned native source supports another Hyprland version.
+Fresh builds run the same check before downloading source. A valid cached build
+does not require the build tools again.
 
 Do not load another copy of hy3 alongside this plugin. If you installed version
 0.1.0 with `install.py`, use its printed rollback command first. A custom
@@ -152,6 +183,7 @@ before retrying. Rebuild and apply after Hyprland updates.
 
 ```bash
 omarchy plugin validate .
+python3 install.py --check
 python3 -m unittest discover -s tests -v
 python3 tests/launcher.py
 python3 install.py --build
@@ -167,6 +199,12 @@ homes and separate nested Hyprland sessions. The plugin test also starts a priva
 Omarchy shell and runs the real add, enable, disable, update, and remove commands.
 The fresh-build mode interrupts the first build, then verifies that enabling
 again compiles and activates the plugin. See [VALIDATION.md](VALIDATION.md).
+
+To recreate `preview.png`, run `python3 tests/capture_preview.py` after building.
+It requires `foot` and `grim`. It captures four real tiled terminal windows on a
+1600x900 window running a disposable compositor. It floats and resizes only that
+temporary window in the parent Hyprland session. All text is public demo content;
+it does not capture the active desktop.
 
 `hy3.patch` applies to upstream commit
 `42b7ed8fd9aefd3f36e5f617afd5071245c67853`. The expected archive SHA-256 is

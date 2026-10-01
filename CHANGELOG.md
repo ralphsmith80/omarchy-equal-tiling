@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `install.py --check` and automatic checks before fresh builds, with
+  missing tools and development libraries listed by their Arch package names.
+- Document the dependency setup command and add an equal-tiling preview.
+
 - Build with fixed system tools and a clean environment. Start Python without
   inherited loader settings or Python startup hooks.
 - Limit archive downloads to 8 MiB and 120 seconds, with a 15-second connection

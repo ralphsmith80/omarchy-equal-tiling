@@ -25,6 +25,12 @@ ARCHIVE_SHA256 = "b4b8842cdfb0562f1f4228ef35c746f040379a33ee0912ad089f693206c340
 ARCHIVE_MAX_BYTES = 8 * 1024 * 1024
 DOWNLOAD_CONNECT_SECONDS = 15
 DOWNLOAD_SECONDS = 120
+BUILD_TOOLS = {"python3": "python", "curl": "curl", "tar": "tar", "gzip": "gzip",
+               "patch": "patch", "cmake": "cmake", "ninja": "ninja",
+               "pkg-config": "pkgconf", "cc": "gcc", "c++": "gcc"}
+BUILD_MODULES = {"hyprland": "hyprland", "pixman-1": "pixman", "libdrm": "libdrm",
+                 "pango": "pango", "pangocairo": "pango", "libinput": "libinput",
+                 "wayland-client": "wayland", "xkbcommon": "libxkbcommon"}
 OUTPUTS = {"libhy3-cosmic.so": ".local/lib/omarchy-equal-tiling/libhy3-cosmic.so",
            "hyprland-commit": ".local/lib/omarchy-equal-tiling/hyprland-commit"}
 
@@ -71,9 +77,13 @@ def atomic_write(path, data, mode):
 
 
 def build_signature():
+    try:
+        headers = Path("/usr/include/hyprland/src/version.h").read_bytes()
+    except FileNotFoundError:
+        raise ValueError("Missing Hyprland headers. Run python3 install.py --check and see README.md#requirements.") from None
     # Do not reuse libraries compiled with the old inherited environment.
     return {"build_policy": 2, "upstream": HY3_COMMIT, "arch": platform.machine(),
-            "headers": hashlib.sha256(Path("/usr/include/hyprland/src/version.h").read_bytes()).hexdigest(),
+            "headers": hashlib.sha256(headers).hexdigest(),
             "patch": hashlib.sha256((PROFILE / "hy3.patch").read_bytes()).hexdigest()}
 
 
@@ -105,14 +115,63 @@ def build_environment(home):
     return {"PATH": "/usr/bin", "HOME": str(home), "LC_ALL": "C.UTF-8"}
 
 
-def download_archive(archive, env):
-    """Bound curl's transfer before verifying the archive in constant memory."""
+def check_curl(env, cwd):
     version = subprocess.run(["/usr/bin/curl", "--disable", "--version"],
-                             env=env, cwd=archive.parent, check=True,
+                             env=env, cwd=cwd, check=True,
                              capture_output=True, text=True, timeout=5)
     match = re.match(r"curl (\d+)\.(\d+)\.(\d+)", version.stdout)
     if not match or tuple(map(int, match.groups())) < (8, 4, 0):
         raise ValueError("curl 8.4.0 or newer is required to limit downloads without Content-Length.")
+
+
+def prerequisite_errors(env, cwd):
+    """Report build requirements using the same trusted paths and environment."""
+    errors = []
+    missing = {tool for tool in BUILD_TOOLS if not os.access(f"/usr/bin/{tool}", os.X_OK)}
+    for tool, package in BUILD_TOOLS.items():
+        if tool in missing:
+            errors.append(f"Missing /usr/bin/{tool}. Arch package: {package}.")
+    if sys.version_info < (3, 9):
+        errors.append("Python 3.9 or newer is required.")
+    if not Path("/usr/include/hyprland/src/version.h").is_file():
+        errors.append("Missing Hyprland version.h. Use the headers from the installed Hyprland package.")
+    if "curl" not in missing:
+        try:
+            check_curl(env, cwd)
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            errors.append(f"curl check failed: {error}")
+    probes = []
+    if "pkg-config" not in missing:
+        for module, package in BUILD_MODULES.items():
+            probes.append((["/usr/bin/pkg-config", "--print-errors", "--exists", module],
+                           f"Development files for {module}. Arch package: {package}.", None))
+    if "c++" not in missing:
+        probes.append((["/usr/bin/c++", "-std=c++23", "-fsyntax-only", "-x", "c++", "-"],
+                       "C++23 compiler support. Arch package: gcc.", "static_assert(__cplusplus > 202002L);\n"))
+    for command, requirement, source in probes:
+        try:
+            result = subprocess.run(command, input=source, env=env, cwd=cwd,
+                                    capture_output=True, text=True, timeout=10)
+            if result.returncode:
+                errors.append(f"{requirement}\n{result.stderr.strip() or 'Check failed.'}")
+        except (OSError, subprocess.SubprocessError) as error:
+            errors.append(f"{requirement}\n{error}")
+    return errors
+
+
+def check_prerequisites():
+    """Check locally without downloading, installing, or changing the desktop."""
+    with tempfile.TemporaryDirectory(prefix="equal-tiling-check-") as temporary:
+        work = Path(temporary)
+        errors = prerequisite_errors(build_environment(work), work)
+    if errors:
+        raise ValueError("Build prerequisites failed:\n- " + "\n- ".join(errors)
+                         + "\nSee README.md#requirements for the dependency command, then run --check again.")
+
+
+def download_archive(archive, env):
+    """Bound curl's transfer before verifying the archive in constant memory."""
+    check_curl(env, archive.parent)
     url = f"https://codeload.github.com/outfoxxed/hy3/tar.gz/{HY3_COMMIT}"
     try:
         subprocess.run([
@@ -144,6 +203,7 @@ def build_hy3():
         if build_current(signature):
             print("hy3 build is unchanged; skipping download and compile.")
             return
+        check_prerequisites()
         (BUILD / "signature.json").unlink(missing_ok=True)
         with tempfile.TemporaryDirectory(prefix="compile-", dir=BUILD) as temporary:
             work = Path(temporary)
@@ -345,6 +405,7 @@ def main():
     action = parser.add_mutually_exclusive_group()
     action.add_argument("--apply", action="store_true", help="Back up and apply the overrides")
     action.add_argument("--build", action="store_true", help="Download pinned hy3, apply our patch, and build locally")
+    action.add_argument("--check", action="store_true", help="Check local build requirements without installing")
     parser.add_argument("--overwrite-local", action="store_true", help="Back up and replace later local edits")
     parser.add_argument("--rollback", type=Path, help="Preview an undo; add --apply to perform it")
     parser.add_argument("--home", type=Path, default=Path.home(), help="Target home; must have Omarchy's config already")
@@ -354,8 +415,8 @@ def main():
         if not args.home.is_dir():
             raise ValueError("Target home must exist.")
         if args.rollback:
-            if args.build:
-                parser.error("--build and --rollback cannot be combined")
+            if args.build or args.check:
+                parser.error("--build/--check and --rollback cannot be combined")
             if args.apply:
                 with write_lock(args.home):
                     rollback(args.home, args.rollback, True)
@@ -363,6 +424,9 @@ def main():
                 rollback(args.home, args.rollback, False)
         elif platform.system() != "Linux" or not (OMARCHY / "default/hypr/bootstrap.lua").is_file():
             raise ValueError("This package requires Omarchy with Lua configuration.")
+        elif args.check:
+            check_prerequisites()
+            print("Build prerequisites passed. This does not test source compatibility or the running Hyprland session.")
         elif args.build:
             build_hy3()
         else:

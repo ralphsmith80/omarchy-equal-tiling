@@ -1,5 +1,29 @@
 # Validation
 
+## Setup check and preview
+
+Validated on 2026-10-01 with Hyprland 0.56.2.
+
+- `python3 install.py --check` passed against the installed tools and development
+  libraries. In a read-only Bubblewrap filesystem with Ninja and Hyprland's
+  pkg-config file hidden, it returned exit 1 and named both missing requirements.
+  The sandbox had no network access and did not change system packages.
+- All 26 automated tests passed, including grouped prerequisite failures,
+  unsupported tool versions, check exit status, and stopping before download.
+- Exercised cancelled-build recovery and a fresh native build through the actual
+  Omarchy service. The library compiled and loaded in the disposable compositor.
+  The full lifecycle test then passed using the verified cached build.
+- Corrected two test assumptions exposed during fresh-build runs. The square
+  assertion now sets zero aspect-ratio tolerance in the test compositor. The
+  reload test waits for the service callback instead of accepting Omarchy's
+  temporary default dispatcher. Runtime tiling code is unchanged.
+- Captured and inspected the 1600x900 preview from four real windows. Geometry
+  checks confirmed equal column widths and three equal heights on the right.
+  The screenshot contains public demo text only.
+- Checked dependency package names against the installed Arch package database
+  and repository metadata. Manifest validation and diff checks passed. An
+  independent scenario review found no P1 or P2 issues.
+
 ## Build security changes
 
 Validated on 2026-09-29 against Hyprland 0.56.2 and curl 8.22.0.
