@@ -1,5 +1,21 @@
 # Validation
 
+## Animated preview
+
+Validated on 2026-10-01 with Hyprland 0.56.2.
+
+- Ran `uv run tests/capture_preview.py`. Five windows opened side by side at
+  equal widths. The script then pressed the real bindings from
+  `config/hypr/equal-tiling.lua` through the test binding table. Geometry checks
+  passed for five equal columns, a stack of three equal windows, a half-width
+  priority column, and three equal columns after the second Super+Alt+P.
+- Inspected `preview.png` (1920x960) and frames from `preview.gif` (1000x500,
+  12 fps, about 23 seconds). Window text comes from an export of the committed
+  files and tag names only. The wallpaper replaces one background color after
+  capture.
+- A failed frame capture now stops the run with an error. Each window command
+  must exit 0 with output before recording starts.
+
 ## Setup check and preview
 
 Validated on 2026-10-01 with Hyprland 0.56.2.

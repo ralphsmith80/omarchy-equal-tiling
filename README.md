@@ -8,7 +8,7 @@ while the plugin is enabled. It does not edit your Hyprland configuration files.
 This is an independent implementation. It is not affiliated with or endorsed by
 System76, and it does not reproduce every COSMIC desktop feature.
 
-![Equal tiling with one full-height window beside three equally sized windows](preview.png)
+![New windows open side by side at equal widths, then key presses stack, move, and widen them](preview.gif)
 
 Press Super+Shift+an arrow to move the focused window through the layout tree.
 Moving across a split creates a group, enters a neighboring group, or steps out
@@ -200,11 +200,14 @@ Omarchy shell and runs the real add, enable, disable, update, and remove command
 The fresh-build mode interrupts the first build, then verifies that enabling
 again compiles and activates the plugin. See [VALIDATION.md](VALIDATION.md).
 
-To recreate `preview.png`, run `python3 tests/capture_preview.py` after building.
-It requires `foot` and `grim`. It captures four real tiled terminal windows on a
-1600x900 window running a disposable compositor. It floats and resizes only that
-temporary window in the parent Hyprland session. All text is public demo content;
-it does not capture the active desktop.
+To recreate `preview.gif` and `preview.png`, run `uv run tests/capture_preview.py`
+after building. It requires `foot`, `grim`, `ffmpeg`, `bat`, `eza`, and `uv`. It opens
+five terminal windows in a disposable compositor at 1920x960 and presses the real
+bindings. It floats and resizes only that temporary window in the parent Hyprland
+session. The wallpaper is added after capture, in place of the background color.
+All text is public repository content; it does not capture the active desktop.
+`preview.png` is a still from the same recording, because the plugin marketplace
+accepts only static previews.
 
 `hy3.patch` applies to upstream commit
 `42b7ed8fd9aefd3f36e5f617afd5071245c67853`. The expected archive SHA-256 is
