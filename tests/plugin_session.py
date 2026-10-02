@@ -48,7 +48,8 @@ def run():
         config.parent.mkdir(parents=True)
         original = '''dofile("/usr/share/omarchy/default/hypr/bootstrap.lua")
 hl.monitor({output="", mode="preferred", position="0x0", scale=1})
-hl.config({input={follow_mouse=0}, animations={enabled=false}})
+-- The test asserts an exact square regardless of the parent window's dimensions.
+hl.config({input={follow_mouse=0}, animations={enabled=false}, layout={single_window_aspect_ratio_tolerance=0}})
 test_bindings = {}
 o = {bind=function(key, description, action, opts)
   if type(action) == "string" then action = hl.dsp.exec_cmd(action) end
@@ -146,7 +147,8 @@ require("default.hypr.toggles")
                 for _ in range(2):
                     assert ctl('reload')=='ok'
                     def bindings_ready():
-                        try:return ctl('eval','assert(test_bindings["SUPER + SHIFT + RIGHT"])')=='ok'
+                        # Reload first installs Omarchy's dispatcher, then the service callback.
+                        try:return ctl('eval','assert(type(test_bindings["SUPER + SHIFT + RIGHT"]) == "function")')=='ok'
                         except RuntimeError:return False
                     wait_for(bindings_ready)
                     ev('test_bindings["SUPER + SHIFT + RIGHT"]()')
